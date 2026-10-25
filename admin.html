@@ -13,7 +13,7 @@ window.google = { script: { get run() {
     withSuccessHandler: function(h){ ok = h; return o; },
     withFailureHandler: function(h){ fail = h; return o; }
   };
-  ['load', 'punch', 'undo', 'vote', 'adminData', 'printData'].forEach(function(fn){
+  ['load', 'punch', 'undo', 'vote', 'ack', 'adminData', 'printData'].forEach(function(fn){
     o[fn] = function(){
       var args = [].slice.call(arguments);
       fetch(API, { method: 'POST', credentials: 'omit', redirect: 'follow',
@@ -73,11 +73,11 @@ function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&
 function $(id){ return document.getElementById(id); }
 var order = { '在園':0, '未到':1, '已接走':2 };
 function drawPolls(d){
-  $('pollBox').innerHTML = (d.polls || []).length ? '<h2>家長投票</h2><table><thead><tr><th>題目</th><th>班級</th><th>截止</th><th>結果</th><th>還沒投</th></tr></thead><tbody>'
+  $('pollBox').innerHTML = (d.polls || []).length ? '<h2>家長投票</h2><table><thead><tr><th>題目</th><th>班級</th><th>截止</th><th>結果</th><th>還沒投</th><th>還沒看結果</th></tr></thead><tbody>'
     + d.polls.map(function(p){
       return '<tr><td>' + esc(p.q) + (p.open ? '' : '（已結束）') + '</td><td>' + esc(p.cls) + '</td><td>' + esc(p.deadline.slice(5)) + '</td><td>'
         + p.opts.map(function(o){ return esc(o) + ' <b>' + p.counts[o] + '</b>'; }).join('<br>') + '<br><span style="color:#6b7c8a">已投 ' + p.voted + '/' + p.families + ' 家</span></td><td>'
-        + esc(p.notVoted.join('、')) + '</td></tr>';
+        + esc(p.notVoted.join('、')) + '</td><td>' + (p.open ? '—' : '已看 ' + p.seen + '/' + p.families + ' 家<br>' + esc(p.notSeen.join('、'))) + '</td></tr>';
     }).join('') + '</tbody></table>' : '';
 }
 function draw(d){

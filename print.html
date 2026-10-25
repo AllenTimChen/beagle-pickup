@@ -13,7 +13,7 @@ window.google = { script: { get run() {
     withSuccessHandler: function(h){ ok = h; return o; },
     withFailureHandler: function(h){ fail = h; return o; }
   };
-  ['load', 'punch', 'undo', 'vote', 'adminData', 'printData'].forEach(function(fn){
+  ['load', 'punch', 'undo', 'vote', 'ack', 'adminData', 'printData'].forEach(function(fn){
     o[fn] = function(){
       var args = [].slice.call(arguments);
       fetch(API, { method: 'POST', credentials: 'omit', redirect: 'follow',
