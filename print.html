@@ -1,0 +1,68 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>門口 QR 列印</title>
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="接送">
+<script>
+var API = 'https://script.google.com/macros/s/AKfycbytI20PdgXhvPIrXAB2BLbSkDViVeXFWgXb39HwCgtxnz00NRFi4oW7NgIksYDGdjk/exec';
+// 模擬 google.script.run：改用 fetch 呼叫試算表後台（不帶 Google 登入資訊）
+window.google = { script: { get run() {
+  var ok, fail, o = {
+    withSuccessHandler: function(h){ ok = h; return o; },
+    withFailureHandler: function(h){ fail = h; return o; }
+  };
+  ['load', 'punch', 'undo', 'vote', 'adminData', 'printData'].forEach(function(fn){
+    o[fn] = function(){
+      var args = [].slice.call(arguments);
+      fetch(API, { method: 'POST', credentials: 'omit', redirect: 'follow',
+                   headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                   body: JSON.stringify({ fn: fn, args: args }) })
+        .then(function(r){ return r.json(); })
+        .then(function(j){ if (j.error) { if (fail) fail(new Error(j.error)); } else if (ok) ok(j.data); })
+        .catch(function(){ if (fail) fail(new Error('網路連線失敗，請再試一次')); });
+    };
+  });
+  return o;
+} } };
+var PARAMS = new URLSearchParams(location.search);
+</script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  body { margin:0; font-family:-apple-system,"PingFang TC","Microsoft JhengHei",sans-serif; color:#1d2b36; background:#eee; }
+  .bar { padding:12px; text-align:center; background:#fff; }
+  .bar button { font-size:18px; padding:10px 24px; background:#2b8fd6; color:#fff; border:0; border-radius:8px; }
+  .pg { width:210mm; height:296mm; margin:10px auto; background:#fff; box-sizing:border-box; padding:22mm 15mm;
+        display:flex; flex-direction:column; align-items:center; text-align:center; }
+  .h { font-size:34px; font-weight:800; color:#2b8fd6; margin-bottom:18px; }
+  .qr { margin:10px 0 18px; }
+  .s { font-size:22px; line-height:1.6; }
+  .d { font-size:64px; font-weight:800; letter-spacing:14px; margin:4px 0 14px; }
+  .w { font-size:18px; color:#9b1c1c; margin-top:10px; }
+  .n { font-size:15px; color:#6b7c8a; margin-top:auto; }
+  @media print { body { background:#fff; } .bar { display:none; } .pg { margin:0; } }
+  @page { size:A4; margin:0; }
+</style></head>
+<body>
+<div class="bar"><button onclick="window.print()">列印</button></div>
+<div class="pg">
+  <div class="h">貝格爾蘆竹館｜接送打卡</div>
+  <div class="s">送到、接走時，請用手機相機掃描</div>
+  <div class="qr" id="qr"></div>
+  <div class="s">掃不到時，打開您的專屬連結，輸入：</div>
+  <div class="d" id="d"></div>
+  <div class="w">接送紀錄會不定期與監視器比對，不符時以監視器時間計費。</div>
+  <div class="n">本 QR 不含任何孩子資料，只用來確認您在門口。</div>
+</div>
+<script>
+google.script.run
+  .withSuccessHandler(function(D){
+    document.getElementById('d').textContent = D.digits;
+    new QRCode(document.getElementById('qr'), { text: D.url, width: 380, height: 380, correctLevel: QRCode.CorrectLevel.M });
+  })
+  .withFailureHandler(function(e){ document.getElementById('d').textContent = ''; document.getElementById('qr').textContent = '讀取失敗：' + e.message; })
+  .printData(PARAMS.get('key') || '');
+</script>
+</body></html>

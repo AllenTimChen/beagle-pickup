@@ -1,0 +1,113 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>接送管理</title>
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="接送">
+<script>
+var API = 'https://script.google.com/macros/s/AKfycbytI20PdgXhvPIrXAB2BLbSkDViVeXFWgXb39HwCgtxnz00NRFi4oW7NgIksYDGdjk/exec';
+// 模擬 google.script.run：改用 fetch 呼叫試算表後台（不帶 Google 登入資訊）
+window.google = { script: { get run() {
+  var ok, fail, o = {
+    withSuccessHandler: function(h){ ok = h; return o; },
+    withFailureHandler: function(h){ fail = h; return o; }
+  };
+  ['load', 'punch', 'undo', 'vote', 'adminData', 'printData'].forEach(function(fn){
+    o[fn] = function(){
+      var args = [].slice.call(arguments);
+      fetch(API, { method: 'POST', credentials: 'omit', redirect: 'follow',
+                   headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                   body: JSON.stringify({ fn: fn, args: args }) })
+        .then(function(r){ return r.json(); })
+        .then(function(j){ if (j.error) { if (fail) fail(new Error(j.error)); } else if (ok) ok(j.data); })
+        .catch(function(){ if (fail) fail(new Error('網路連線失敗，請再試一次')); });
+    };
+  });
+  return o;
+} } };
+var PARAMS = new URLSearchParams(location.search);
+</script>
+
+<style>
+  :root { --sky:#2b8fd6; --in:#1f9d55; --out:#6b7c8a; --late:#e07b1a; --ink:#1d2b36; --mut:#6b7c8a; --bg:#f2f8fd; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif; background:var(--bg); color:var(--ink); }
+  header { background:var(--sky); color:#fff; padding:14px 20px; display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:6px; }
+  header b { font-size:20px; } header span { font-size:15px; opacity:.9; }
+  main { max-width:980px; margin:0 auto; padding:16px; }
+  .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:16px; }
+  .stat { background:#fff; border-radius:12px; padding:12px 14px; box-shadow:0 1px 3px rgba(0,0,0,.07); }
+  .stat div { font-size:14px; color:var(--mut); } .stat b { font-size:30px; }
+  h2 { font-size:17px; margin:18px 0 8px; }
+  table { width:100%; border-collapse:collapse; background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,.07); font-size:15px; }
+  th, td { padding:9px 12px; text-align:left; border-bottom:1px solid #eef2f5; }
+  th { background:#e8f3fc; font-weight:600; font-size:14px; }
+  td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
+  .tag { display:inline-block; padding:2px 10px; border-radius:10px; font-size:13px; font-weight:600; }
+  .t-在園 { background:#e5f6ec; color:#14663a; } .t-已接走 { background:#eef1f4; color:#4a5a68; } .t-未到 { background:#fff; color:#9aa7b2; border:1px solid #dfe5ea; }
+  .late { color:var(--late); font-weight:700; }
+  .warn { color:#9b1c1c; }
+  .foot { font-size:13px; color:var(--mut); margin-top:14px; }
+  @media (max-width:600px) { .stats { grid-template-columns:repeat(2,1fr); } th, td { padding:8px; font-size:14px; } }
+</style></head>
+<body>
+<header><b>貝格爾蘆竹館｜接送管理</b><span id="when">載入中…</span></header>
+<main>
+  <div class="stats">
+    <div class="stat"><div>在園</div><b id="sIn">-</b></div>
+    <div class="stat"><div>已接走</div><b id="sOut">-</b></div>
+    <div class="stat"><div>未到</div><b id="sNo">-</b></div>
+    <div class="stat"><div>本月延托費合計</div><b id="sFee">-</b></div>
+  </div>
+  <h2>今天</h2>
+  <table><thead><tr><th>孩子</th><th>狀態</th><th>到園</th><th>送的人</th><th>離園</th><th>接的人</th><th class="num">延托費</th></tr></thead><tbody id="today"></tbody></table>
+  <div id="pollBox"></div>
+  <h2>本月延托費</h2>
+  <table><thead><tr><th>孩子</th><th class="num">延托天數</th><th class="num">金額</th><th>需要處理</th></tr></thead><tbody id="month"></tbody></table>
+  <div class="foot">每分鐘自動更新。在園的孩子 <span id="lf"></span> 後會顯示目前累計的延托費（還沒接走，金額會再變）。要補登或對監視器，請到 Google 試算表的「接送系統」選單。</div>
+</main>
+<script>
+var KEY = PARAMS.get('key') || '';
+function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+function $(id){ return document.getElementById(id); }
+var order = { '在園':0, '未到':1, '已接走':2 };
+function drawPolls(d){
+  $('pollBox').innerHTML = (d.polls || []).length ? '<h2>家長投票</h2><table><thead><tr><th>題目</th><th>班級</th><th>截止</th><th>結果</th><th>還沒投</th></tr></thead><tbody>'
+    + d.polls.map(function(p){
+      return '<tr><td>' + esc(p.q) + (p.open ? '' : '（已結束）') + '</td><td>' + esc(p.cls) + '</td><td>' + esc(p.deadline.slice(5)) + '</td><td>'
+        + p.opts.map(function(o){ return esc(o) + ' <b>' + p.counts[o] + '</b>'; }).join('<br>') + '<br><span style="color:#6b7c8a">已投 ' + p.voted + '/' + p.families + ' 家</span></td><td>'
+        + esc(p.notVoted.join('、')) + '</td></tr>';
+    }).join('') + '</tbody></table>' : '';
+}
+function draw(d){
+  drawPolls(d);
+  $('when').textContent = d.today.slice(5).replace('-', '/') + '　' + d.now + ' 更新';
+  $('lf').textContent = d.lateFrom;
+  var c = { '在園':0, '已接走':0, '未到':0 };
+  d.kids.forEach(function(k){ c[k.state]++; });
+  $('sIn').textContent = c['在園']; $('sOut').textContent = c['已接走']; $('sNo').textContent = c['未到'];
+  var tot = d.month.reduce(function(a, m){ return a + m.fee; }, 0);
+  $('sFee').textContent = tot.toLocaleString() + ' 元';
+  $('today').innerHTML = d.kids.slice().sort(function(a, b){ return order[a.state] - order[b.state] || (a.id < b.id ? -1 : 1); }).map(function(k){
+    var fee = k.fee ? '<span class="late">' + k.fee + ' 元' + (k.state === '在園' ? '…' : '') + '</span>' : '';
+    return '<tr><td>' + esc(k.name) + '</td><td><span class="tag t-' + k.state + '">' + k.state + '</span></td><td>' + esc(k.inT) + '</td><td>' + esc(k.inW)
+      + '</td><td>' + esc(k.outT) + '</td><td>' + esc(k.outW) + '</td><td class="num">' + fee + '</td></tr>';
+  }).join('') || '<tr><td colspan="7">孩子名單是空的</td></tr>';
+  $('month').innerHTML = d.month.map(function(m){
+    var todo = [];
+    if (m.miss) todo.push('<span class="warn">' + m.miss + ' 天漏按</span>');
+    if (m.check) todo.push(m.check + ' 筆待查');
+    return '<tr><td>' + esc(m.name) + '</td><td class="num">' + m.days + '</td><td class="num">' + m.fee.toLocaleString() + ' 元</td><td>' + todo.join('、') + '</td></tr>';
+  }).join('') || '<tr><td colspan="4">本月還沒有紀錄</td></tr>';
+}
+function load(){
+  google.script.run
+    .withSuccessHandler(draw)
+    .withFailureHandler(function(e){ $('when').textContent = '更新失敗：' + (e.message || e); })
+    .adminData(KEY);
+}
+load();
+setInterval(load, 60000);
+</script>
+</body></html>

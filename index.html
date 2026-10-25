@@ -1,0 +1,206 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>貝格爾蘆竹館 接送紀錄</title>
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="接送">
+<script>
+var API = 'https://script.google.com/macros/s/AKfycbytI20PdgXhvPIrXAB2BLbSkDViVeXFWgXb39HwCgtxnz00NRFi4oW7NgIksYDGdjk/exec';
+// 模擬 google.script.run：改用 fetch 呼叫試算表後台（不帶 Google 登入資訊）
+window.google = { script: { get run() {
+  var ok, fail, o = {
+    withSuccessHandler: function(h){ ok = h; return o; },
+    withFailureHandler: function(h){ fail = h; return o; }
+  };
+  ['load', 'punch', 'undo', 'vote', 'adminData', 'printData'].forEach(function(fn){
+    o[fn] = function(){
+      var args = [].slice.call(arguments);
+      fetch(API, { method: 'POST', credentials: 'omit', redirect: 'follow',
+                   headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                   body: JSON.stringify({ fn: fn, args: args }) })
+        .then(function(r){ return r.json(); })
+        .then(function(j){ if (j.error) { if (fail) fail(new Error(j.error)); } else if (ok) ok(j.data); })
+        .catch(function(){ if (fail) fail(new Error('網路連線失敗，請再試一次')); });
+    };
+  });
+  return o;
+} } };
+var PARAMS = new URLSearchParams(location.search);
+</script>
+
+<style>
+  :root { --sky:#2b8fd6; --in:#1f9d55; --out:#e07b1a; --ink:#1d2b36; --mut:#6b7c8a; --bg:#f2f8fd; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; font-family:-apple-system,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif; background:var(--bg); color:var(--ink); }
+  header { background:var(--sky); color:#fff; padding:14px 16px; }
+  header b { font-size:18px; } header div { font-size:14px; opacity:.9; margin-top:2px; }
+  main { padding:12px 16px 40px; max-width:520px; margin:0 auto; }
+  .lbl { font-size:14px; color:var(--mut); margin:6px 0; }
+  .who { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
+  .who button { border:1.5px solid #c5d9ea; background:#fff; border-radius:20px; padding:8px 14px; font-size:16px; color:var(--ink); }
+  .who button.on { background:var(--sky); border-color:var(--sky); color:#fff; }
+  .card { background:#fff; border-radius:14px; padding:14px; margin-bottom:14px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .card h2 { margin:0 0 10px; font-size:22px; }
+  .btns { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .btns button { border:0; border-radius:12px; padding:20px 0; font-size:22px; font-weight:700; color:#fff; }
+  .btns .in { background:var(--in); } .btns .out { background:var(--out); }
+  .btns button:disabled { opacity:.5; }
+  .msg { margin-top:10px; padding:10px 12px; border-radius:10px; font-size:16px; display:none; }
+  .msg.ok { display:block; background:#e5f6ec; color:#14663a; }
+  .msg.err { display:block; background:#fde8e8; color:#9b1c1c; }
+  .msg a { color:inherit; margin-left:8px; font-size:14px; }
+  .code { display:flex; gap:8px; margin-top:8px; }
+  .code input { width:120px; font-size:26px; letter-spacing:6px; text-align:center; padding:6px; border:1.5px solid #9cc3e2; border-radius:8px; }
+  .code button { flex:1; border:0; border-radius:8px; background:var(--out); color:#fff; font-size:18px; font-weight:700; }
+  ul { list-style:none; padding:0; margin:12px 0 0; font-size:15px; }
+  li { padding:6px 0; border-top:1px solid #eef2f5; display:flex; gap:10px; }
+  li .a-到園 { color:var(--in); font-weight:600; } li .a-離園 { color:var(--out); font-weight:600; }
+  li .d { color:var(--mut); width:52px; }
+  .foot { font-size:13px; color:var(--mut); text-align:center; margin-top:18px; }
+  .poll { background:#fff8e1; border:1.5px solid #f3d27a; border-radius:14px; padding:14px; margin-bottom:14px; }
+  .poll .pt { font-size:13px; color:#8a6d1f; font-weight:700; } .poll h3 { margin:4px 0 4px; font-size:19px; }
+  .poll .pd { font-size:14px; color:var(--mut); margin-bottom:10px; }
+  .poll .po { display:flex; flex-wrap:wrap; gap:8px; }
+  .poll .po button { flex:1; min-width:120px; border:1.5px solid #d9b85a; background:#fff; border-radius:10px; padding:12px 8px; font-size:17px; color:var(--ink); }
+  .poll .po button.on { background:#d99a00; border-color:#d99a00; color:#fff; font-weight:700; }
+  .poll .pm { margin-top:8px; font-size:15px; }
+</style></head>
+<body>
+<header><b>貝格爾蘆竹館｜接送紀錄</b><div id="today"></div></header>
+<main>
+  <div id="polls"></div>
+  <div class="lbl">今天是誰接送？</div>
+  <div class="who" id="who"></div>
+  <div id="kids"></div>
+  <div class="foot">時間以系統記錄為準・只有您和園方看得到這些紀錄</div>
+</main>
+<script>
+var D = null;
+var Q = (PARAMS.get('q') || '').trim();
+(function(){
+  var k = (PARAMS.get('k') || '').trim();
+  if (/^[a-f0-9]{16}$/.test(k)) { try { localStorage.setItem('bk', k); } catch (e) {} }
+})();
+var who = '';
+try { who = localStorage.getItem('who') || ''; } catch (e) {}
+
+function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+function $(id){ return document.getElementById(id); }
+
+var wk = '日一二三四五六';
+var now = new Date();
+$('today').textContent = (now.getMonth()+1) + ' 月 ' + now.getDate() + ' 日（' + wk[now.getDay()] + '）';
+
+function drawWho(){
+  $('who').innerHTML = D.who.map(function(w){
+    return '<button class="' + (w === who ? 'on' : '') + '" onclick="pickWho(\'' + w + '\')">' + w + '</button>';
+  }).join('');
+}
+function pickWho(w){ who = w; try { localStorage.setItem('who', w); } catch (e) {} drawWho(); }
+
+function drawKids(){
+  $('kids').innerHTML = D.kids.map(function(c, i){
+    return '<div class="card"><h2>' + esc(c.name) + '</h2>'
+      + '<div class="btns"><button class="in" id="bi' + i + '" onclick="go(' + i + ',\'到園\')">到園</button>'
+      + '<button class="out" id="bo' + i + '" onclick="go(' + i + ',\'離園\')">離園</button></div>'
+      + '<div class="msg" id="m' + i + '"></div>'
+      + '<ul id="r' + i + '"></ul></div>';
+  }).join('');
+  D.kids.forEach(function(c, i){ drawRecent(i); });
+}
+function drawRecent(i){
+  var r = D.kids[i].recent;
+  $('r' + i).innerHTML = r.length ? r.map(function(x){
+    return '<li><span class="d">' + esc(x.d.slice(5).replace('-', '/')) + '</span><span>' + esc(x.t)
+      + '</span><span class="a-' + esc(x.a) + '">' + esc(x.a) + '</span><span>' + esc(x.w) + '</span></li>';
+  }).join('') : '<li><span class="d"></span>還沒有紀錄</li>';
+}
+function busy(i, on){ $('bi' + i).disabled = on; $('bo' + i).disabled = on; }
+function msg(i, cls, html){ var m = $('m' + i); m.className = 'msg ' + cls; m.innerHTML = html; }
+
+function go(i, action){
+  if (!who) { msg(i, 'err', '請先在上面選「今天是誰接送」'); return; }
+  if (D.door.indexOf(action) >= 0 && !Q) { askCode(i, action, ''); return; }
+  send(i, action);
+}
+function askCode(i, action, err){
+  msg(i, err ? 'err' : 'ok', (err ? esc(err) + '<br>' : '') + '請到門口掃 QR，或輸入門口貼紙上的 4 位數字：<div class="code"><input id="c' + i + '" inputmode="numeric" maxlength="4" autocomplete="off">'
+      + '<button onclick="send(' + i + ',\'' + action + '\')">送出' + action + '</button></div>');
+  $('c' + i).focus();
+}
+function send(i, action){
+  var c = D.kids[i];
+  var code = Q || ($('c' + i) ? $('c' + i).value : '');
+  busy(i, true); msg(i, 'ok', '記錄中…');
+  google.script.run
+    .withSuccessHandler(function(res){
+      busy(i, false);
+      c.recent = res.recent; drawRecent(i);
+      if (res.dup) { msg(i, 'ok', '✓ ' + action + '剛剛已記錄過（' + res.time + '），不用再按'); return; }
+      msg(i, 'ok', '✓ ' + esc(c.name) + ' ' + action + ' ' + res.time + '（' + esc(who) + '）'
+        + '<a href="#" onclick="back(' + i + ',\'' + res.stamp + '\');return false">按錯了，撤銷</a>');
+    })
+    .withFailureHandler(function(e){
+      busy(i, false);
+      var m = String(e.message || e);
+      if (code && /代碼|數字|輸錯/.test(m)) { askCode(i, action, m); return; }
+      msg(i, 'err', '沒有記錄成功：' + esc(m) + '，請再按一次');
+    })
+    .punch(D.k, c.id, action, who, code);
+}
+function back(i, stamp){
+  var c = D.kids[i];
+  busy(i, true);
+  google.script.run
+    .withSuccessHandler(function(res){ busy(i, false); c.recent = res.recent; drawRecent(i); msg(i, 'ok', '已撤銷，請重新按正確的按鈕'); })
+    .withFailureHandler(function(e){ busy(i, false); msg(i, 'err', esc(e.message || e)); })
+    .undo(D.k, c.id, stamp);
+}
+
+function fmtDl(s){ return s.slice(5, 7).replace(/^0/, '') + '/' + s.slice(8, 10).replace(/^0/, '') + ' ' + s.slice(11); }
+function drawPolls(){
+  $('polls').innerHTML = (D.polls || []).map(function(p, i){
+    var head = '<div class="poll"><div class="pt">家長投票' + (p.open ? '' : '（已結束）') + '</div><h3>' + esc(p.q) + '</h3>';
+    if (!p.open) {
+      return head + '<div class="pd">' + fmtDl(p.deadline) + ' 截止</div><div class="pm">結果：' + p.opts.map(function(o){ return esc(o) + ' ' + p.counts[o] + ' 票'; }).join('、')
+        + (p.my ? '<br>您投了：' + esc(p.my) : '<br>您沒有投票') + '</div></div>';
+    }
+    return head + '<div class="pd">' + fmtDl(p.deadline) + ' 截止・每個家庭一票・截止前可以改</div><div class="po">'
+      + p.opts.map(function(o, j){ return '<button class="' + (o === p.my ? 'on' : '') + '" onclick="castVote(' + i + ',' + j + ')">' + esc(o) + '</button>'; }).join('')
+      + '</div><div class="pm" id="pm' + i + '">' + (p.my ? '✓ 您已投「' + esc(p.my) + '」' : '請選一個') + '</div></div>';
+  }).join('');
+}
+function castVote(i, j){
+  var p = D.polls[i];
+  $('pm' + i).textContent = '送出中…';
+  google.script.run
+    .withSuccessHandler(function(polls){ D.polls = polls; drawPolls(); })
+    .withFailureHandler(function(e){ $('pm' + i).textContent = '沒有送出：' + (e.message || e); })
+    .vote(D.k, p.id, p.opts[j]);
+}
+
+function start(){
+  if (D.who.indexOf(who) < 0) who = '';
+  drawPolls();
+  try { localStorage.setItem('bk', D.k); } catch (e) {}
+  if (D.qBad) { Q = ''; $('today').textContent += '　⚠ 這張門口 QR 已停用'; }
+  else if (Q) $('today').textContent += '　✓ 已掃門口 QR';
+  drawWho(); drawKids();
+}
+if (D) start();
+else {
+  var bk = '';
+  try { bk = localStorage.getItem('bk') || ''; } catch (e) {}
+  if (!bk) {
+    $('kids').innerHTML = '<div class="card">這支手機還不認得您。<br><br>請先打開園方 LINE 給您的<b>專屬連結</b>一次，之後掃門口 QR 就會直接出現您的孩子。</div>';
+  } else {
+    $('kids').innerHTML = '<div class="card">載入中…</div>';
+    google.script.run
+      .withSuccessHandler(function(d){ D = d; start(); })
+      .withFailureHandler(function(e){ $('kids').innerHTML = '<div class="card">' + esc(e.message || e) + '</div>'; })
+      .load(bk, Q);
+  }
+}
+</script>
+</body></html>
