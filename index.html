@@ -220,7 +220,7 @@ function drawPolls(){
           : '<div class="po" style="margin-top:10px"><button class="seen" onclick="ackPoll(' + i + ')">我已看到</button></div><div class="pm" id="pm' + i + '"></div>')
         + '</div>';
     }
-    return head + '<div class="pd">' + fmtDl(p.deadline) + ' 截止・每個家庭一票・截止前可以改</div><div class="po">'
+    return head + '<div class="pd">' + fmtDl(p.deadline) + ' 截止・每個家庭一票・截止前可以改' + (p.opts.indexOf('同意停課') >= 0 ? '<br>全班超過一半的家庭同意才停課，沒投票算不同意' : '') + '</div><div class="po">'
       + p.opts.map(function(o, j){ return '<button class="' + (o === p.my ? 'on' : '') + '" onclick="castVote(' + i + ',' + j + ')">' + esc(o) + '</button>'; }).join('')
       + '</div><div class="pm" id="pm' + i + '">' + (p.my ? '✓ 您已投「' + esc(p.my) + '」' : '請選一個') + '</div></div>';
   }).join('');
