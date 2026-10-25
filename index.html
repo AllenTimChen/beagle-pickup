@@ -51,6 +51,11 @@ var PARAMS = new URLSearchParams(location.search);
   .msg.err { display:block; background:#fde8e8; color:#9b1c1c; }
   .msg a { color:inherit; margin-left:8px; font-size:14px; }
   .code { display:flex; gap:8px; margin-top:8px; }
+  .scanbtn { display:block; width:100%; margin-top:8px; border:0; border-radius:8px; background:#2b8fd6; color:#fff; font-size:18px; font-weight:700; padding:12px; }
+  .scan { position:fixed; inset:0; background:#000; z-index:99; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .scan video { width:100%; max-height:75vh; object-fit:cover; }
+  .scan .sh { color:#fff; font-size:18px; margin:14px; text-align:center; }
+  .scan button { border:0; border-radius:10px; background:#fff; color:#222; font-size:18px; padding:10px 40px; }
   .code input { width:120px; font-size:26px; letter-spacing:6px; text-align:center; padding:6px; border:1.5px solid #9cc3e2; border-radius:8px; }
   .code button { flex:1; border:0; border-radius:8px; background:var(--out); color:#fff; font-size:18px; font-weight:700; }
   ul { list-style:none; padding:0; margin:12px 0 0; font-size:15px; }
@@ -128,9 +133,50 @@ function go(i, action){
   send(i, action);
 }
 function askCode(i, action, err){
-  msg(i, err ? 'err' : 'ok', (err ? esc(err) + '<br>' : '') + '請到門口掃 QR，或輸入門口貼紙上的 4 位數字：<div class="code"><input id="c' + i + '" inputmode="numeric" maxlength="4" autocomplete="off">'
+  var cam = navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
+  msg(i, err ? 'err' : 'ok', (err ? esc(err) + '<br>' : '') + (cam ? '請按下面的按鈕掃門口 QR，或' : '請到門口掃 QR，或') + '輸入門口貼紙上的 4 位數字：'
+      + (cam ? '<button class="scanbtn" onclick="scanQR(' + i + ',\'' + action + '\')">📷 開相機掃門口 QR</button>' : '')
+      + '<div class="code"><input id="c' + i + '" inputmode="numeric" maxlength="4" autocomplete="off">'
       + '<button onclick="send(' + i + ',\'' + action + '\')">送出' + action + '</button></div>');
-  $('c' + i).focus();
+}
+// 在頁面裡開相機掃門口 QR（有 BarcodeDetector 就用，沒有就載入 jsQR）
+function scanQR(i, action){
+  var ov = document.createElement('div');
+  ov.className = 'scan';
+  ov.innerHTML = '<video playsinline muted autoplay></video><div class="sh">把門口的 QR 放進畫面裡</div><button>取消</button>';
+  document.body.appendChild(ov);
+  var video = ov.querySelector('video'), stream = null, done = false;
+  var cv = document.createElement('canvas'), cx = cv.getContext('2d', { willReadFrequently: true });
+  function stop(){ done = true; if (stream) stream.getTracks().forEach(function(t){ t.stop(); }); if (ov.parentNode) ov.parentNode.removeChild(ov); }
+  ov.querySelector('button').onclick = stop;
+  function hit(text){
+    var q = '';
+    try { q = new URL(text).searchParams.get('q') || ''; } catch (e) {}
+    if (!q) { ov.querySelector('.sh').textContent = '這不是門口的 QR，請再對準一次'; return; }
+    stop(); Q = q; send(i, action);
+  }
+  function fail(){ stop(); askCode(i, action, '沒辦法打開相機，可以改用手機的相機 App 掃門口 QR'); }
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false }).then(function(s){
+    stream = s; video.srcObject = s; video.play();
+    var det = null;
+    try { if ('BarcodeDetector' in window) det = new BarcodeDetector({ formats: ['qr_code'] }); } catch (e) {}
+    function tick(){
+      if (done) return;
+      if (video.readyState < 2) { requestAnimationFrame(tick); return; }
+      if (det) {
+        det.detect(video).then(function(r){ if (r.length) hit(r[0].rawValue); if (!done) setTimeout(tick, 200); }).catch(function(){ det = null; tick(); });
+        return;
+      }
+      if (!window.jsQR) { setTimeout(tick, 200); return; }
+      var w = Math.min(640, video.videoWidth), h = Math.round(video.videoHeight * w / video.videoWidth);
+      cv.width = w; cv.height = h; cx.drawImage(video, 0, 0, w, h);
+      var r = jsQR(cx.getImageData(0, 0, w, h).data, w, h, { inversionAttempts: 'dontInvert' });
+      if (r && r.data) hit(r.data);
+      if (!done) setTimeout(tick, 150);
+    }
+    if (!det && !window.jsQR) { var sc = document.createElement('script'); sc.src = 'jsQR.js'; document.head.appendChild(sc); }
+    tick();
+  }).catch(fail);
 }
 function send(i, action){
   var c = D.kids[i];
@@ -147,7 +193,7 @@ function send(i, action){
     .withFailureHandler(function(e){
       busy(i, false);
       var m = String(e.message || e);
-      if (code && /代碼|數字|輸錯/.test(m)) { askCode(i, action, m); return; }
+      if (code && /代碼|數字|輸錯/.test(m)) { Q = ''; askCode(i, action, m); return; }
       msg(i, 'err', '沒有記錄成功：' + esc(m) + '，請再按一次');
     })
     .punch(D.k, c.id, action, who, code);
