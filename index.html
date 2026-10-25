@@ -250,6 +250,19 @@ function start(){
   else if (Q) $('today').textContent += '　✓ 已掃門口 QR';
   drawWho(); drawKids();
 }
+// 從背景回到畫面（例如手機桌面圖示再打開）時，重新抓投票和紀錄，避免看到舊畫面
+var lastLoad = Date.now();
+function refresh(){
+  if (!D || document.hidden || Date.now() - lastLoad < 30000) return;
+  lastLoad = Date.now();
+  google.script.run.withSuccessHandler(function(d){
+    D.polls = d.polls; drawPolls();
+    D.kids.forEach(function(c, i){ var n = d.kids.filter(function(x){ return x.id === c.id; })[0]; if (n) { c.recent = n.recent; drawRecent(i); } });
+  }).load(D.k, Q);
+}
+document.addEventListener('visibilitychange', refresh);
+window.addEventListener('pageshow', function(e){ if (e.persisted) { lastLoad = 0; refresh(); } });
+setInterval(refresh, 5 * 60000);
 if (D) start();
 else {
   var bk = '';
