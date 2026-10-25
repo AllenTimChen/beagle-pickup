@@ -55,7 +55,7 @@ var PARAMS = new URLSearchParams(location.search);
   .code button { flex:1; border:0; border-radius:8px; background:var(--out); color:#fff; font-size:18px; font-weight:700; }
   ul { list-style:none; padding:0; margin:12px 0 0; font-size:15px; }
   li { padding:6px 0; border-top:1px solid #eef2f5; display:flex; gap:10px; }
-  li .a-到中心, li .a-到園 { color:var(--in); font-weight:600; } li .a-離園 { color:var(--out); font-weight:600; }
+  li .a-到中心, li .a-到園 { color:var(--in); font-weight:600; } li .a-離開中心, li .a-離園 { color:var(--out); font-weight:600; }
   li .d { color:var(--mut); width:52px; }
   .foot { font-size:13px; color:var(--mut); text-align:center; margin-top:18px; }
   .poll { background:#fff8e1; border:1.5px solid #f3d27a; border-radius:14px; padding:14px; margin-bottom:14px; }
@@ -106,7 +106,7 @@ function drawKids(){
   $('kids').innerHTML = D.kids.map(function(c, i){
     return '<div class="card"><h2>' + esc(c.name) + '</h2>'
       + '<div class="btns"><button class="in" id="bi' + i + '" onclick="go(' + i + ',\'到中心\')">到中心</button>'
-      + '<button class="out" id="bo' + i + '" onclick="go(' + i + ',\'離園\')">離園</button></div>'
+      + '<button class="out" id="bo' + i + '" onclick="go(' + i + ',\'離開中心\')">離開中心</button></div>'
       + '<div class="msg" id="m' + i + '"></div>'
       + '<ul id="r' + i + '"></ul></div>';
   }).join('');
