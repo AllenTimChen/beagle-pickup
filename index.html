@@ -65,6 +65,8 @@ var PARAMS = new URLSearchParams(location.search);
   .poll .po button { flex:1; min-width:120px; border:1.5px solid #d9b85a; background:#fff; border-radius:10px; padding:12px 8px; font-size:17px; color:var(--ink); }
   .poll .po button.on { background:#d99a00; border-color:#d99a00; color:#fff; font-weight:700; }
   .poll .pm { margin-top:8px; font-size:15px; }
+  .poll.done { background:#e8f4fd; border-color:#8cc4ec; } .poll.done .pt { color:#1f6fa8; }
+  .poll .pr { font-size:20px; font-weight:700; margin:6px 0 2px; }
 </style></head>
 <body>
 <header><b>貝格爾蘆竹館｜接送紀錄</b><div id="today"></div></header>
@@ -163,8 +165,10 @@ function drawPolls(){
   $('polls').innerHTML = (D.polls || []).map(function(p, i){
     var head = '<div class="poll"><div class="pt">家長投票' + (p.open ? '' : '（已結束）') + '</div><h3>' + esc(p.q) + '</h3>';
     if (!p.open) {
-      return head + '<div class="pd">' + fmtDl(p.deadline) + ' 截止</div><div class="pm">結果：' + p.opts.map(function(o){ return esc(o) + ' ' + p.counts[o] + ' 票'; }).join('、')
-        + (p.my ? '<br>您投了：' + esc(p.my) : '<br>您沒有投票') + '</div></div>';
+      return '<div class="poll done"><div class="pt">📢 投票結果公告</div><h3>' + esc(p.q) + '</h3>'
+        + '<div class="pr">' + (p.result ? '結果：' + esc(p.result) : '票數相同，園方會再另行通知') + '</div>'
+        + '<div class="pm">' + p.opts.map(function(o){ return esc(o) + ' ' + p.counts[o] + ' 票'; }).join('、')
+        + '（' + p.voted + '/' + p.families + ' 家投票）<br>' + (p.my ? '您投了：' + esc(p.my) : '您沒有投票') + '</div></div>';
     }
     return head + '<div class="pd">' + fmtDl(p.deadline) + ' 截止・每個家庭一票・截止前可以改</div><div class="po">'
       + p.opts.map(function(o, j){ return '<button class="' + (o === p.my ? 'on' : '') + '" onclick="castVote(' + i + ',' + j + ')">' + esc(o) + '</button>'; }).join('')
